@@ -9,6 +9,7 @@ import (
 	"runtime"
 )
 
+// Interfacer 	a
 type Interfacer interface {
 	Address() string                  // 网卡地址
 	Name() string                     // 网卡名

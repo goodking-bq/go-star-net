@@ -1,0 +1,4 @@
+address: 10.3.0.10
+server:
+  bind: 192.168.2.253
+  port: 9998
