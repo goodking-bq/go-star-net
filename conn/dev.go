@@ -55,7 +55,7 @@ func (ifc *Interface) Init() bool {
 	case "darwin":
 		command = fmt.Sprintf("sudo ifconfig %s 10.3.0.10 10.3.0.20 up", ifce.Name())
 	case "linux":
-		command = fmt.Sprintf("sudo ifconfig %s 10.3.0.10 netmask 255.255.255.0", ifce.Name())
+		command = fmt.Sprintf("sudo ifconfig %s 10.3.0.30 netmask 255.255.255.0", ifce.Name())
 	}
 	log.Printf("Interface Name: %s\n", ifce.Name())
 	cmd := exec.Command("/bin/bash", "-c", command)
@@ -65,7 +65,7 @@ func (ifc *Interface) Init() bool {
 	}
 	ifc.ifc = ifce
 	ifc.name = ifce.Name()
-	_, err = icmp.ListenPacket("ip4:icmp", "10.3.0.10")
+	_, err = icmp.ListenPacket("ip4:icmp", "10.3.0.30")
 	if err != nil {
 		log.Fatal(err)
 	}

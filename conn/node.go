@@ -3,15 +3,15 @@ package conn
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/goodking-bq/go-star-net/handle"
 	"github.com/spf13/viper"
-	"gnet/handle"
 	"log"
 	"net"
 	"os"
 	"sync"
 )
 
-// 网络节点
+// Node 网络节点
 // network
 // 每个节点名字唯一
 type Node interface {
@@ -27,7 +27,7 @@ type Node interface {
 	SendFunc(name string) func(data []byte) // 发送数据函数
 }
 
-// 节点下的连接
+// Connection 节点下的连接
 type Connection interface {
 	ID() string
 	Conn() *net.Conn
@@ -67,7 +67,7 @@ func (nd *node) Interface() Interfacer {
 	return nd.ifc
 }
 
-// 获取连接
+// GetConnection 获取连接
 func (nd *node) GetConnection(name string) net.Conn {
 	return nil
 }
