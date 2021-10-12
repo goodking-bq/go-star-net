@@ -1,4 +1,4 @@
-package handler
+package core
 
 import (
 	"encoding/binary"
@@ -7,10 +7,30 @@ import (
 	"time"
 )
 
+func Handle(data []byte) []byte {
+	header, err := ipv4.ParseHeader(data)
+	if err != nil {
+		println(err)
+		return nil
+	}
+	switch header.Protocol {
+	case 1:
+		return ICMPHandle(data)
+	case 6: //TCP
+		println("TCP protocol")
+		return nil
+	case 17: //UDP
+		println("UDP protocol")
+		return nil
+	default:
+		println("error protocol")
+		return nil
+	}
+}
 func CheckSum(data []byte) uint16 {
 	var (
 		sum    uint32
-		length int = len(data)
+		length = len(data)
 		index  int
 	)
 	for length > 1 {
@@ -25,16 +45,6 @@ func CheckSum(data []byte) uint16 {
 
 	return uint16(^sum)
 }
-
-func timeToBytes(t time.Time) []byte {
-	nsec := t.UnixNano()
-	b := make([]byte, 8)
-	for i := uint8(0); i < 8; i++ {
-		b[i] = byte((nsec >> ((7 - i) * 8)) & 0xff)
-	}
-	return b
-}
-
 func ICMPHandle(data []byte) []byte {
 	a, _ := ipv4.ParseHeader(data)
 	Data := make([]byte, len(data))

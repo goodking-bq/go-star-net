@@ -2,25 +2,29 @@ package main
 
 import (
 	"flag"
-	"github.com/goodking-bq/go-star-net/conn"
+	"github.com/goodking-bq/go-star-net/core"
 	"github.com/spf13/viper"
 )
 
 var (
-	cfg = flag.String("config", "config.yaml", "config path")
+	cfg    = flag.String("config", "config.yaml", "config path")
+	config core.Config
 )
 
 func init() {
+	flag.Parse()
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 	viper.SetConfigFile(*cfg)
 	_ = viper.ReadInConfig()
-	println("env address is: ", viper.GetString("address"))
+	println(viper.GetBool("with_server"))
 }
 
 func main() {
-	flag.Parse()
-
-	node := conn.NewNode(viper.GetString("address"))
+	err := viper.Unmarshal(&config)
+	if err != nil {
+		return
+	}
+	node := core.NewNode(config)
 	node.Ready()
 }

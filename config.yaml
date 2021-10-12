@@ -1,4 +1,10 @@
-address: 10.3.0.10
+address: 10.3.0.20
+is_server: true
+leaf: true
 server:
-  bind: 192.168.2.253
+  bind: 0.0.0.0
   port: 9998
+client:
+  connections:
+    - host: 172.16.22.1
+      port: 9998

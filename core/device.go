@@ -1,4 +1,4 @@
-package conn
+package core
 
 import (
 	"fmt"
@@ -9,16 +9,7 @@ import (
 	"runtime"
 )
 
-// Interfacer 	a
-type Interfacer interface {
-	Address() string                  // 网卡地址
-	Name() string                     // 网卡名
-	Init() bool                       // 初始化网卡
-	IsReady() bool                    // 是否准备好
-	Ready(callBack func(data []byte)) // callback
-	Write(data []byte) (n int, err error)
-}
-
+// Interface tun device interface
 type Interface struct {
 	ifc     *water.Interface
 	config  string
@@ -50,26 +41,15 @@ func (ifc *Interface) Init() bool {
 		log.Fatal(err)
 		return false
 	}
-	log.Printf("os name: %s\n", runtime.GOOS)
-	var command string
-	switch runtime.GOOS {
-	case "darwin":
-		command = fmt.Sprintf("sudo ifconfig %s 10.3.0.10 10.3.0.20 up", ifce.Name())
-	case "linux":
-		command = fmt.Sprintf("sudo ifconfig %s 10.3.0.30 netmask 255.255.255.0", ifce.Name())
-	}
-	log.Printf("Interface Name: %s\n", ifce.Name())
-	cmd := exec.Command("/bin/bash", "-c", command)
-	if _, err := cmd.Output(); err != nil {
-		log.Println(err)
-		return false
-	}
 	ifc.ifc = ifce
 	ifc.name = ifce.Name()
-	_, err = icmp.ListenPacket("ip4:icmp", "10.3.0.30")
-	if err != nil {
-		log.Fatal(err)
+	switch runtime.GOOS {
+	case "darwin":
+		ifc.initDarwin()
+	case "linux":
+		ifc.initLinux()
 	}
+
 	return true
 }
 
@@ -86,14 +66,42 @@ func (ifc *Interface) Ready(callBack func(data []byte)) {
 
 }
 
-func NewInterface(address string) Interfacer {
+func NewInterface(address string) *Interface {
 	ifc := &Interface{
 		ifc:     nil,
 		config:  "",
 		address: address,
-		netmask: "",
+		netmask: "255.255.255.0",
 		name:    "",
 	}
 	ifc.Init()
 	return ifc
+}
+
+func (ifc *Interface) initDarwin() {
+	command := fmt.Sprintf("sudo ifconfig %s 10.3.0.10 %s up", ifc.Name(), ifc.address)
+	log.Printf("Interface Name: %s\n", ifc.Name())
+	cmd := exec.Command("/bin/bash", "-c", command)
+	if _, err := cmd.Output(); err != nil {
+		log.Println(err)
+		log.Fatal(err)
+	}
+	_, err := icmp.ListenPacket("ip4:icmp", "10.3.0.10")
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (ifc *Interface) initLinux() {
+	command := fmt.Sprintf("sudo ifconfig %s %s netmask %s", ifc.Name(), ifc.address, ifc.netmask)
+	log.Printf("Interface Name: %s\n", ifc.Name())
+	cmd := exec.Command("/bin/bash", "-c", command)
+	if _, err := cmd.Output(); err != nil {
+		log.Println(err)
+		log.Fatal(err)
+	}
+	_, err := icmp.ListenPacket("ip4:icmp", ifc.address)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
