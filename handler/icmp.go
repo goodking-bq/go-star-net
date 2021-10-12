@@ -1,4 +1,4 @@
-package handle
+package handler
 
 import (
 	"encoding/binary"
@@ -35,13 +35,17 @@ func timeToBytes(t time.Time) []byte {
 	return b
 }
 
-func ICMPHandle(data [] byte) []byte {
+func ICMPHandle(data []byte) []byte {
 	a, _ := ipv4.ParseHeader(data)
 	Data := make([]byte, len(data))
 	a.Src, a.Dst = a.Dst, a.Src
 	a.Checksum = 0
 	a.TotalLen = 84
-	headerData, _ := a.Marshal()
+	headerData, err := a.Marshal()
+	if err != nil {
+		println(err)
+		return nil
+	}
 	binary.BigEndian.PutUint16(headerData[2:4], uint16(a.TotalLen))
 	binary.BigEndian.PutUint16(headerData[10:12], CheckSum(headerData))
 	copy(Data, headerData)

@@ -3,13 +3,23 @@ package conn
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/goodking-bq/go-star-net/handle"
+	"github.com/goodking-bq/go-star-net/handler"
 	"github.com/spf13/viper"
 	"log"
 	"net"
 	"os"
 	"sync"
 )
+
+type Server struct {
+	Bind string `json:"bind"` //server bind ip
+	Port int    `json:"port"` // bind port
+}
+
+type Config struct {
+	Address string `json:"address"` //tun device ip address
+	Server  Server `json:"server"`
+}
 
 // Node 网络节点
 // network
@@ -79,9 +89,11 @@ func (nd *node) Ready() bool {
 }
 
 func (nd *node) Send(data []byte) {
-	Data := handle.ICMPHandle(data)
-	println(hex.Dump(data))
-	_, _ = nd.Interface().Write(Data)
+	Data := handler.Handle(data)
+	if Data != nil {
+		println(hex.Dump(data))
+		_, _ = nd.Interface().Write(Data)
+	}
 }
 func (nd *node) SendFunc(name string) func(data []byte) {
 	return func(data []byte) {
@@ -94,13 +106,14 @@ func (nd *node) SendFunc(name string) func(data []byte) {
 	}
 }
 
-func NewNode(address string) Node {
+// NewNode 新建节点
+func NewNode(cfg Config) Node {
 	listener, err := net.Listen("tcp", viper.GetString("host")+":"+viper.GetString("port"))
 	if err != nil {
 		fmt.Println("Error listening:", err)
 		os.Exit(1)
 	}
-	ifc := NewInterface(address)
+	ifc := NewInterface(cfg.Address)
 	n := &node{
 		name:        "node1",
 		address:     "",
