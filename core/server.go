@@ -3,10 +3,10 @@ package core
 import (
 	"fmt"
 	"github.com/panjf2000/gnet"
-	"io"
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 type ServerConfig struct {
@@ -15,6 +15,7 @@ type ServerConfig struct {
 }
 type Server struct {
 	*gnet.EventServer
+	codec       gnet.ICodec // 自定义
 	connections sync.Map
 }
 
@@ -22,10 +23,56 @@ func (server *Server) OnOpened(c gnet.Conn) (out []byte, action gnet.Action) {
 	server.connections.Store(c.RemoteAddr(), c)
 	return
 }
-
-func (server *Server) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	out = frame
+func (server *Server) OnClosed(c gnet.Conn, err error) (action gnet.Action) {
+	server.connections.Delete(c.RemoteAddr().String())
 	return
+}
+func (server *Server) OnInitComplete(srv gnet.Server) (action gnet.Action) {
+	log.Printf("Test codec server is listening on %s (multi-cores: %t, loops: %d)\n",
+		srv.Addr.String(), srv.Multicore, srv.NumEventLoop)
+	return
+}
+
+// React 处理数据 frame 输入的数据  out 返回的数据
+func (server *Server) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
+	fmt.Println("frame:", string(frame))
+	p := c.Context().(StarNetProtocol)
+	switch p.DataType {
+	case DataTypeBeat:
+		println("beat")
+		item := StarNetPool.Get().(*StarNetProtocol)
+		item.DataType = DataTypeBeat
+		c.SetContext(item)
+		out = []byte("beat")
+		return
+	case DataTypeSync:
+		println("sync")
+		item := StarNetPool.Get().(*StarNetProtocol)
+		item.DataType = DataTypeSync
+		c.SetContext(item)
+		out = []byte("sync")
+		return
+	case DataTypeData:
+		item := StarNetPool.Get().(*StarNetProtocol)
+		item.DataType = DataTypeData
+		c.SetContext(item)
+		println("data")
+		out = []byte("data")
+		return
+	default:
+		return
+	}
+}
+func (server *Server) Tick() (delay time.Duration, action gnet.Action) {
+	server.connections.Range(func(key, value interface{}) bool {
+		conn := value.(gnet.Conn)
+		p := StarNetPool.Get().(*StarNetProtocol)
+		p.DataType = DataTypeBeat
+		conn.SetContext(p)
+		_ = conn.AsyncWrite([]byte("beat"))
+		return true
+	})
+	return time.Second, gnet.None
 }
 
 func (server *Server) WriterConn(dst string) *net.Conn {
@@ -37,32 +84,13 @@ func (server *Server) WriterConn(dst string) *net.Conn {
 }
 
 func NewServer(cfg ServerConfig) *Server {
-	server := &Server{}
+	codec := &StarNetProtocol{}
+	server := &Server{codec: codec}
 	go func() {
-		err := gnet.Serve(server, "tcp://"+cfg.Bind+":"+cfg.Port)
+		err := gnet.Serve(server, "tcp://"+cfg.Bind+":"+cfg.Port, gnet.WithCodec(codec))
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}()
 	return server
-}
-
-func handleCheck(conn net.Conn) bool {
-	fmt.Println("pair up ...")
-	conn.Write([]byte("report"))
-	buf := make([]byte, 1024)
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error to read message because of ", err)
-		return false
-	}
-	fmt.Println(string(buf[:reqLen-1]))
-	return true
-}
-
-func handleRequest(conn net.Conn) {
-	defer conn.Close()
-	for {
-		io.Copy(conn, conn)
-	}
 }

@@ -34,6 +34,7 @@ func NewClient(cfg ClientConfig) *Client {
 			os.Exit(1)
 		}
 		client.connections.Store(c.String(), conn)
+
 	}
 	return client
 }
