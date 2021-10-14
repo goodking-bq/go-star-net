@@ -2,8 +2,10 @@ package core
 
 import (
 	"encoding/hex"
+	"fmt"
 	"golang.org/x/net/ipv4"
 	"io"
+	"log"
 	"net"
 )
 
@@ -32,6 +34,7 @@ type Node struct {
 	server  *Server
 	client  *Client
 	ifc     *Interface
+	config  Config
 }
 
 func (nd *Node) Interface() *Interface {
@@ -76,6 +79,39 @@ func (nd *Node) Send(data []byte) {
 	}
 }
 
+func (nd *Node) InitClient(cfg ClientConfig) error {
+	client := &Client{}
+	for _, c := range cfg.Connections {
+		conn, err := net.Dial("tcp", c.String())
+		if err != nil {
+			return fmt.Errorf("error connecting: %s", err)
+		}
+		client.connections.Store(c.String(), conn)
+		go func() {
+			for {
+				newPackage, err := DecodeForClient(conn)
+				if err != nil {
+					continue
+				}
+				switch newPackage.DataType {
+				case DataTypeBeat:
+					log.Printf("beat from %s", conn.RemoteAddr())
+				case DataTypeSync:
+				case DataTypeData:
+					_, err := nd.ifc.Write(newPackage.Data)
+					if err != nil {
+						return
+					}
+				default:
+
+				}
+			}
+		}()
+	}
+	nd.client = client
+	return nil
+}
+
 //func (nd *Node) SendFunc(name string) func(data []byte) {
 //	return func(data []byte) {
 //		conn := nd.GetConnection(name)
@@ -100,8 +136,9 @@ func NewNode(cfg Config) *Node {
 		server := NewServer(cfg.Server)
 		n.server = server
 	} else {
-		client := NewClient(cfg.Client)
-		n.client = client
+		if err := n.InitClient(cfg.Client); err != nil {
+			log.Println(err)
+		}
 	}
 	return n
 }

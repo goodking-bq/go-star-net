@@ -2,9 +2,8 @@ package core
 
 import (
 	"fmt"
+	"log"
 	"net"
-	"os"
-	"strconv"
 	"sync"
 )
 
@@ -22,7 +21,15 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	connections sync.Map
+	connections sync.Map //链接
+}
+
+func (c *Client) WriteTo(data []byte, to string) {
+
+}
+
+func (c *Client) WriteToLocal(data []byte) {
+
 }
 
 func NewClient(cfg ClientConfig) *Client {
@@ -31,31 +38,31 @@ func NewClient(cfg ClientConfig) *Client {
 		conn, err := net.Dial("tcp", c.String())
 		if err != nil {
 			fmt.Println("Error connecting:", err)
-			os.Exit(1)
+			continue
 		}
 		client.connections.Store(c.String(), conn)
+		go func() {
+			for {
+				newPackage, err := DecodeForClient(conn)
+				if err != nil {
+					continue
+				}
+				switch newPackage.DataType {
+				case DataTypeBeat:
+					log.Printf("beat from %s", conn.RemoteAddr())
+				case DataTypeSync:
+				case DataTypeData:
 
+				default:
+
+				}
+			}
+		}()
 	}
 	return client
 }
 
-func handleWrite(conn net.Conn, done chan string) {
-	for i := 10; i > 0; i-- {
-		_, e := conn.Write([]byte("hello " + strconv.Itoa(i) + "\r\n"))
-		if e != nil {
-			fmt.Println("Error to send message because of ", e.Error())
-			break
-		}
-	}
-	done <- "Sent"
-}
-func handleRead(conn net.Conn, done chan string) {
-	buf := make([]byte, 1024)
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error to read message because of ", err)
-		return
-	}
-	fmt.Println(string(buf[:reqLen-1]))
-	done <- "Read"
+// ConnToDevice transport  client conn to device
+func ConnToDevice(conn net.Conn, tun Interface) {
+
 }

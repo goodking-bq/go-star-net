@@ -64,6 +64,7 @@ func (server *Server) React(frame []byte, c gnet.Conn) (out []byte, action gnet.
 	}
 }
 func (server *Server) Tick() (delay time.Duration, action gnet.Action) {
+	log.Printf("tick")
 	server.connections.Range(func(key, value interface{}) bool {
 		conn := value.(gnet.Conn)
 		p := StarNetPool.Get().(*StarNetProtocol)
@@ -87,7 +88,7 @@ func NewServer(cfg ServerConfig) *Server {
 	codec := &StarNetProtocol{}
 	server := &Server{codec: codec}
 	go func() {
-		err := gnet.Serve(server, "tcp://"+cfg.Bind+":"+cfg.Port, gnet.WithCodec(codec))
+		err := gnet.Serve(server, "tcp://"+cfg.Bind+":"+cfg.Port, gnet.WithCodec(codec), gnet.WithTicker(true))
 		if err != nil {
 			log.Fatalln(err)
 		}

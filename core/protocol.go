@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/panjf2000/gnet"
+	"io"
 	"log"
+	"net"
 	"sync"
 )
 
@@ -97,6 +99,35 @@ func (sp *StarNetProtocol) Decode(c gnet.Conn) ([]byte, error) {
 	}
 	// log.Println("not enough header data:", size)
 	return nil, errors.New("not enough header data")
+}
+
+func DecodeForClient(c net.Conn) (*StarNetProtocol, error) {
+	newPackage := StarNetPool.Get().(*StarNetProtocol)
+	headData := make([]byte, DefaultHeadLength)
+	n, err := io.ReadFull(c, headData)
+	if n != DefaultHeadLength {
+		return nil, err
+	}
+	// parse protocol header
+	bytesBuffer := bytes.NewBuffer(headData)
+	_ = binary.Read(bytesBuffer, binary.BigEndian, &newPackage.Version)
+	_ = binary.Read(bytesBuffer, binary.BigEndian, &newPackage.DataType)
+	_ = binary.Read(bytesBuffer, binary.BigEndian, &newPackage.DataLength)
+
+	if newPackage.DataLength < 1 {
+		return newPackage, nil
+	}
+
+	data := make([]byte, newPackage.DataLength)
+	dataNum, err2 := io.ReadFull(c, data)
+	if uint32(dataNum) != newPackage.DataLength {
+		s := fmt.Sprintf("read data error, %v", err2)
+		return nil, errors.New(s)
+	}
+
+	newPackage.Data = data
+
+	return newPackage, nil
 }
 
 //UnPack ...
