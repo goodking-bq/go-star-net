@@ -1,92 +1,91 @@
 package core
 
 import (
-	"encoding/hex"
 	"fmt"
 	"golang.org/x/net/ipv4"
-	"io"
 	"log"
 	"net"
+	"sync"
 )
 
-type Config struct {
-	Address  string       `json:"address" yaml:"address"` //tun device ip address
-	Server   ServerConfig `json:"server" yaml:"server"`
-	Client   ClientConfig `json:"client" yaml:"client"`
-	Leaf     bool         `json:"leaf" yaml:"leaf"`
-	IsServer bool         `json:"is_server" yaml:"is_server"`
+type OptionConnection struct {
+	Host string `json:"host"`
+	Port string `json:"port"`
 }
 
-// Connection 节点下的连接
-type Connection interface {
-	ID() string
-	Conn() *net.Conn
-	CheckData() []byte //检查数据
+func (opt OptionConnection) String() string {
+	return opt.Host + ":" + opt.Port
 }
 
-// Node 网络节点
-// network
-// 每个节点名字唯一
+type Options struct {
+	Address     string             `json:"address" yaml:"address"`
+	Connections []OptionConnection `json:"connections" yaml:"connections"`
+	Server      struct {
+		Enable bool   `json:"enable"`
+		Bind   string `json:"bind"`
+		Port   string `json:"port"`
+	} `json:"server"`
+}
+
 type Node struct {
-	Name    string
-	Address string
-	Port    string
-	server  *Server
-	client  *Client
-	ifc     *Interface
-	config  Config
+	*Server
+	*Interface
+	conns   sync.Map
+	options Options
 }
 
-func (nd *Node) Interface() *Interface {
-	return nd.ifc
-}
-
-func (nd *Node) Ready() bool {
-	nd.ifc.Ready(nd.Send)
-
-	return true
-}
-
-func (nd *Node) Send(data []byte) {
-	var Data []byte
+//InterfaceCallBack  handle interface save data
+func (node *Node) InterfaceCallBack(data []byte) {
 	header, err := ipv4.ParseHeader(data)
 	if err != nil {
 		println(err)
 		return
 	}
-	dst := header.Dst.String()
-	var writer io.Writer
-	if dst == nd.Address {
-		writer = nd.Interface()
+	dst := header.Dst.String()         //to where
+	if dst == node.Interface.address { // to local
+		if header.Protocol == 1 {
+			_, _ = node.Write(ICMPHandle(data))
+		} else {
+			_, err := node.Write(data)
+			if err != nil {
+				return
+			}
+		}
+	} else { //to remote
+
 	}
-	println(dst)
-	switch header.Protocol {
-	case 1:
-		copy(Data, ICMPHandle(data))
-	case 6: //TCP
-		println("TCP protocol")
-		return
-	case 17: //UDP
-		println("UDP protocol")
-		return
-	default:
-		println("error protocol")
-		return
-	}
-	if Data != nil {
-		println(hex.Dump(data))
-		_, _ = writer.Write(Data)
-	}
+
 }
 
-func (nd *Node) InitClient(cfg ClientConfig) error {
-	client := &Client{}
-	for _, c := range cfg.Connections {
+func (node *Node) StartClient() error {
+	return nil
+}
+
+func (node *Node) StartServer() error {
+	return nil
+}
+
+func (node *Node) Start() error {
+	go node.Ready(node.InterfaceCallBack)
+	return nil
+}
+
+func NewNode(opt Options) *Node {
+	ifc := NewInterface(opt.Address)
+	node := &Node{
+		Server:    nil,
+		Interface: ifc,
+		options:   opt,
+	}
+	if opt.Server.Enable {
+
+	}
+	for _, c := range opt.Connections {
 		conn, err := net.Dial("tcp", c.String())
 		if err != nil {
-			return fmt.Errorf("error connecting: %s", err)
+			fmt.Printf("error connecting: %s", err)
 		}
-		client.connections.Store(c.String(), conn)
+		node.connections.Store(c.String(), conn)
 		go func() {
 			for {
 				newPackage, err := DecodeForClient(conn)
@@ -108,37 +107,5 @@ func (nd *Node) InitClient(cfg ClientConfig) error {
 			}
 		}()
 	}
-	nd.client = client
-	return nil
-}
-
-//func (nd *Node) SendFunc(name string) func(data []byte) {
-//	return func(data []byte) {
-//		conn := nd.GetConnection(name)
-//		l, err := conn.Write(data)
-//		if err != nil {
-//			log.Println("send error:  ", err)
-//		}
-//		log.Println("send success:  ", l)
-//	}
-//}
-
-// NewNode 新建节点
-func NewNode(cfg Config) *Node {
-	ifc := NewInterface(cfg.Address)
-	n := &Node{
-		Name:    cfg.Address,
-		Address: cfg.Address,
-		Port:    "",
-		ifc:     ifc,
-	}
-	if cfg.Leaf {
-		server := NewServer(cfg.Server)
-		n.server = server
-	} else {
-		if err := n.InitClient(cfg.Client); err != nil {
-			log.Println(err)
-		}
-	}
-	return n
+	return node
 }
